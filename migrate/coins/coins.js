@@ -9,12 +9,12 @@
 'use strict';
 
 const assert = require('assert');
-const {encoding} = require('bufio');
 const util = require('../../lib/utils/util');
 const Coin = require('../../lib/primitives/coin');
 const Output = require('../../lib/primitives/output');
-const BufferReader = require('bufio').BufferReader;
-const StaticWriter = require('bufio').StaticWriter;
+const BufferReader = require('../../lib/utils/reader');
+const StaticWriter = require('../../lib/utils/staticwriter');
+const encoding = require('../../lib/utils/encoding');
 const compressor = require('./compress');
 const compress = compressor.compress;
 const decompress = compressor.decompress;
@@ -54,7 +54,7 @@ function Coins(options) {
 
 Coins.prototype.fromOptions = function fromOptions(options) {
   if (options.version != null) {
-    assert((options.version >>> 0) === options.version);
+    assert(util.isU32(options.version));
     this.version = options.version;
   }
 
@@ -64,7 +64,7 @@ Coins.prototype.fromOptions = function fromOptions(options) {
   }
 
   if (options.height != null) {
-    assert(Number.isSafeInteger(options.height));
+    assert(util.isInt(options.height));
     this.height = options.height;
   }
 

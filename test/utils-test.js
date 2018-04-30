@@ -3,13 +3,13 @@
 
 'use strict';
 
-const {U64, I64} = require('n64');
-const Validator = require('bval');
-const {base58} = require('bstring');
-const {encoding} = require('bufio');
 const assert = require('./util/assert');
+const {U64, I64} = require('../lib/utils/int64');
+const base58 = require('../lib/utils/base58');
+const encoding = require('../lib/utils/encoding');
 const Amount = require('../lib/btc/amount');
-const fixed = require('../lib/utils/fixed');
+const Validator = require('../lib/utils/validator');
+const util = require('../lib/utils/util');
 
 const base58Tests = [
   ['', ''],
@@ -112,10 +112,10 @@ describe('Utils', function() {
     assert.strictEqual(parseFloat('0.15645647') * 1e8, 15645646.999999998);
     assert.strictEqual(15645647 / 1e8, 0.15645647);
 
-    assert.strictEqual(fixed.decode('0.15645647', 8), 15645647);
-    assert.strictEqual(fixed.encode(15645647, 8), '0.15645647');
-    assert.strictEqual(fixed.fromFloat(0.15645647, 8), 15645647);
-    assert.strictEqual(fixed.toFloat(15645647, 8), 0.15645647);
+    assert.strictEqual(util.fromFixed('0.15645647', 8), 15645647);
+    assert.strictEqual(util.toFixed(15645647, 8), '0.15645647');
+    assert.strictEqual(util.fromFloat(0.15645647, 8), 15645647);
+    assert.strictEqual(util.toFloat(15645647, 8), 0.15645647);
   });
 
   it('should write/read new varints', () => {

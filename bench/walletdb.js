@@ -1,7 +1,7 @@
 'use strict';
 
 const bench = require('./bench');
-const random = require('bcrypto/lib/random');
+const random = require('../lib/crypto/random');
 const WalletDB = require('../lib/wallet/walletdb');
 const MTX = require('../lib/primitives/mtx');
 const Outpoint = require('../lib/primitives/outpoint');
@@ -37,7 +37,7 @@ const walletdb = new WalletDB({
     end(1000);
 
     for (const addr of result)
-      addrs.push(addr.receiveAddress());
+      addrs.push(addr.receive.getAddress());
   }
 
   // Keys

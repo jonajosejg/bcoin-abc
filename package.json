@@ -1,7 +1,7 @@
 {
-  "name": "bcoin-abc",
-  "version": "1.0.1",
-  "description": "Bitcoin-Cash bike-shed",
+  "name": "@bcash-org/bcoin-abc",
+  "version": "1.0.0-beta.15",
+  "description": "Bitcoin bike-shed",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,11 +14,12 @@
   "author": "Fedor Indutny <fedor@indutny.com>",
   "contributors": [
     "Christopher Jeffrey <chjjeffrey@gmail.com>",
-    "Jonathan Gonzalez <rojii0xff@gmail.com>"
+    "Jonathan Gonzalez <rojikkushisutemu@gmail.com>"
   ],
   "keywords": [
-    "bcash",
-    "bitcoin cash",
+    "bcoin",
+    "bcoin-cash",
+    "bitcoin",
     "blockchain",
     "cryptocurrency",
     "wallet"
@@ -27,80 +28,62 @@
     "node": ">=7.6.0"
   },
   "dependencies": {
-    "bcfg": "~0.0.2",
-    "bclient": "~0.0.2",
-    "bcrypto": "~0.2.0",
-    "bdb": "~0.1.0",
-    "bdns": "~0.0.2",
-    "bevent": "~0.0.2",
-    "bfile": "~0.0.2",
-    "bfilter": "~0.1.2",
-    "bheep": "~0.0.1",
-    "binet": "~0.2.0",
-    "blgr": "~0.0.2",
-    "blru": "~0.0.1",
-    "blst": "~0.0.1",
-    "bmutex": "~0.0.2",
-    "bn.js": "~4.11.8",
-    "bsip": "~0.0.2",
-    "bsock": "~0.0.2",
-    "bsocks": "~0.1.0",
-    "bstring": "~0.0.2",
-    "btcp": "~0.0.2",
-    "bufio": "~0.1.0",
-    "bupnp": "~0.1.0",
-    "bval": "~0.0.2",
-    "bweb": "~0.0.2",
-    "mrmr": "~0.0.1",
-    "n64": "~0.1.0"
+    "bn.js": "4.11.8",
+    "elliptic": "6.4.0",
+    "n64": "~0.1.0",
+    "bcoin-native": "0.0.23",
+    "leveldown": "1.7.2",
+    "secp256k1": "3.3.0",
+    "socket.io": "2.0.3",
+    "socket.io-client": "2.0.3"
+  },
+  "optionalDependencies": {
+    "bcoin-native": "0.0.23",
+    "leveldown": "1.7.2",
+    "secp256k1": "3.3.0",
+    "socket.io": "2.0.3",
+    "socket.io-client": "2.0.3"
   },
   "devDependencies": {
     "babel-core": "^6.26.0",
     "babel-loader": "^7.1.4",
     "babel-plugin-transform-runtime": "^6.23.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babel-preset-es2016": "^6.24.1",
+    "babel-preset-es2017": "^6.24.1",
     "babel-preset-env": "^1.6.1",
-    "babelify": "^8.0.0",
-    "browserify": "^16.1.1",
     "eslint": "^4.18.2",
+    "hash.js": "^1.1.3",
     "jsdoc": "^3.5.5",
+    "level-js": "^2.2.4",
     "mocha": "^5.0.4",
-    "uglify-es": "^3.3.9",
+    "node-loader": "^0.6.0",
     "uglifyjs-webpack-plugin": "^1.2.3",
-    "webpack": "^4.1.1",
-    "webpack-cli": "^2.0.14"
+    "webpack": "^4.1.1"
   },
-  "main": "./lib/bcash.js",
+  "main": "./lib/bcoin.js",
   "bin": {
-    "bcash": "./bin/bcash",
-    "bcash-node": "./bin/node",
-    "bcash-spvnode": "./bin/spvnode",
-    "bwallet": "./bin/bwallet"
+    "bcoin": "./bin/bcash",
+    "bcoin-cli": "./bin/cli",
+    "bcoin-node": "./bin/node",
+    "bcoin-spvnode": "./bin/spvnode"
   },
   "scripts": {
-    "browserify": "browserify -s bcash lib/bcash-browser.js | uglifyjs -c > bcash.js",
-    "clean": "rm -f {browser/,}{bcash.js,bcash-worker.js,app.js,worker.js}",
+    "clean": "rm -f {browser/,}{bcoin.js,bcoin-worker.js}",
     "docs": "jsdoc -c jsdoc.json",
     "lint": "eslint $(cat .eslintfiles) || exit 0",
     "lint-file": "eslint",
     "test": "mocha --reporter spec test/*.js",
-    "test-browser": "NODE_BACKEND=js mocha --reporter spec test/*.js",
+    "test-browser": "BCOIN_NO_NATIVE=1 BCOIN_NO_SECP256K1=1 mocha --reporter spec test/*.js",
     "test-file": "mocha --reporter spec",
-    "test-file-browser": "NODE_BACKEND=js mocha --reporter spec",
+    "test-file-browser": "BCOIN_NO_NATIVE=1 BCOIN_NO_SECP256K1=1 mocha --reporter spec",
     "webpack": "webpack --config webpack.browser.js",
     "webpack-browser": "webpack --config webpack.browser.js",
     "webpack-compat": "webpack --config webpack.compat.js",
-    "webpack-app": "webpack --config webpack.app.js"
+    "webpack-node": "webpack --config webpack.node.js"
   },
-  "browser": {
-    "./lib/hd/nfkd": "./lib/hd/nfkd-compat.js",
-    "./lib/hd/wordlist": "./lib/hd/wordlist-browser.js",
-    "./lib/workers/child": "./lib/workers/child-browser.js",
-    "./lib/workers/parent": "./lib/workers/parent-browser.js",
-    "./lib/bcash": "./lib/bcash-browser.js"
-  },
-  "browserify": {
-    "transform": [
-      "babelify"
-    ]
+  "directories": {
+    "lib": "lib",
+    "test": "test"
   }
 }

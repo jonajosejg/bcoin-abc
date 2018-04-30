@@ -1,9 +1,6 @@
 all:
 	@npm run webpack
 
-app:
-	@npm run webpack-app
-
 browser:
 	@npm run webpack-browser
 
@@ -12,9 +9,6 @@ compat:
 
 node:
 	@npm run webpack-node
-
-browserify:
-	@npm run browserify
 
 clean:
 	@npm run clean
@@ -28,4 +22,4 @@ lint:
 test:
 	@npm test
 
-.PHONY: all app browser compat node browserify clean docs lint test
+.PHONY: all browser compat node clean docs lint test

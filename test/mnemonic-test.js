@@ -27,29 +27,31 @@ describe('Mnemonic', function() {
       it(`should create a ${language} mnemonic from entropy (${i})`, () => {
         const mnemonic = new Mnemonic({
           language,
-          entropy
+          entropy,
+          passphrase
         });
 
         assert.strictEqual(mnemonic.getPhrase(), phrase);
         assert.bufferEqual(mnemonic.getEntropy(), entropy);
-        assert.bufferEqual(mnemonic.toSeed(passphrase), seed);
+        assert.bufferEqual(mnemonic.toSeed(), seed);
 
-        const key = HDPrivateKey.fromMnemonic(mnemonic, passphrase);
-        assert.strictEqual(key.toBase58('main'), xpriv);
+        const key = HDPrivateKey.fromMnemonic(mnemonic);
+        assert.strictEqual(key.toBase58(), xpriv);
       });
 
       it(`should create a ${language} mnemonic from phrase (${i})`, () => {
         const mnemonic = new Mnemonic({
           language,
-          phrase
+          phrase,
+          passphrase
         });
 
         assert.strictEqual(mnemonic.getPhrase(), phrase);
         assert.bufferEqual(mnemonic.getEntropy(), entropy);
-        assert.bufferEqual(mnemonic.toSeed(passphrase), seed);
+        assert.bufferEqual(mnemonic.toSeed(), seed);
 
-        const key = HDPrivateKey.fromMnemonic(mnemonic, passphrase);
-        assert.strictEqual(key.toBase58('main'), xpriv);
+        const key = HDPrivateKey.fromMnemonic(mnemonic);
+        assert.strictEqual(key.toBase58(), xpriv);
       });
 
       i += 1;

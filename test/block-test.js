@@ -5,11 +5,12 @@
 
 const assert = require('./util/assert');
 const common = require('./util/common');
-const {BloomFilter} = require('bfilter');
+const Bloom = require('../lib/utils/bloom');
 const Block = require('../lib/primitives/block');
 const MerkleBlock = require('../lib/primitives/merkleblock');
 const consensus = require('../lib/protocol/consensus');
 const Script = require('../lib/script/script');
+const encoding = require('../lib/utils/encoding');
 const bip152 = require('../lib/net/bip152');
 const CompactBlock = bip152.CompactBlock;
 const TXRequest = bip152.TXRequest;
@@ -31,7 +32,7 @@ const compact898352 = common.readCompact('compact898352');
 // Format: [name, sigops, weight]
 const sigopsVectors = [
   ['block928816', 9109, 3568200],
-  ['block928828', 23236, 2481560],
+  ['block928828', 5809, 2481560],
   ['block928831', 10035, 3992382],
   ['block928848', 11319, 3992537],
   ['block928849', 9137, 3682105],
@@ -102,7 +103,7 @@ describe('Block', function() {
   });
 
   it('should create a merkle block', () => {
-    const filter = BloomFilter.fromRate(1000, 0.01, BloomFilter.flags.NONE);
+    const filter = Bloom.fromRate(1000, 0.01, Bloom.flags.NONE);
 
     const item1 = '8e7445bbb8abd4b3174d80fa4c409fea6b94d96b';
     const item2 = '047b00000078da0dca3b0ec2300c00d0ab4466ed10'
@@ -127,7 +128,6 @@ describe('Block', function() {
     assert(block.verify());
     assert(block.txs[0].isCoinbase());
     assert(block.txs[0].isSane());
-    assert.strictEqual(block.getBaseSize(), 284231);
 
     let sigops = 0;
     let reward = 0;
@@ -155,7 +155,7 @@ describe('Block', function() {
   it('should fail with a bad merkle root', () => {
     const [block] = block300025.getBlock();
     const merkleRoot = block.merkleRoot;
-    block.merkleRoot = consensus.NULL_HASH;
+    block.merkleRoot = encoding.NULL_HASH;
     block.refresh();
     assert(!block.verifyPOW());
     const [, reason] = block.checkBody();
@@ -169,7 +169,7 @@ describe('Block', function() {
   it('should fail on merkle block with a bad merkle root', () => {
     const [block] = merkle300025.getBlock();
     const merkleRoot = block.merkleRoot;
-    block.merkleRoot = consensus.NULL_HASH;
+    block.merkleRoot = encoding.NULL_HASH;
     block.refresh();
     assert(!block.verifyPOW());
     const [, reason] = block.checkBody();
@@ -339,20 +339,20 @@ describe('Block', function() {
 
   for (const cache of [false, true]) {
     const word = cache ? 'with' : 'without';
-    for (const [name, sigops, weight] of sigopsVectors) {
+    for (const [name, sigops] of sigopsVectors) {
       const ctx = common.readBlock(name);
       it(`should count sigops for ${name} (${word} cache)`, () => {
         const [block, view] = ctx.getBlock();
         const flags = Script.flags.VERIFY_P2SH;
+
         if (!cache)
           block.refresh(true);
 
         let count = 0;
         for (const tx of block.txs)
-          count += tx.getSigopsCost(view, flags);
+          count += tx.getSigopsCount(view, flags);
 
         assert.strictEqual(count, sigops);
-        assert.strictEqual(block.getWeight(), weight);
       });
     }
   }

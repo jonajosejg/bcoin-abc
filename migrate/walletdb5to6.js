@@ -1,46 +1,55 @@
 'use strict';
 
 const assert = require('assert');
-const bdb = require('bdb');
-const bio = require('bufio');
-
-assert(process.argv.length > 2, 'Please pass in a database path.');
-
+const bcoin = require('../');
+const encoding = require('../lib/utils/encoding');
+const BufferWriter = require('../lib/utils/writer');
+const BufferReader = require('../lib/utils/reader');
+let file = process.argv[2];
 let batch;
 
-const db = bdb.create({
-  location: process.argv[2],
+assert(typeof file === 'string', 'Please pass in a database path.');
+
+file = file.replace(/\.ldb\/?$/, '');
+
+const db = bcoin.ldb({
+  location: file,
+  db: 'leveldb',
   compression: true,
   cacheSize: 32 << 20,
-  createIfMissing: false
+  createIfMissing: false,
+  bufferKeys: true
 });
 
 async function updateVersion() {
-  const bak = `${process.env.HOME}/wallet-bak-${Date.now()}`;
+  const bak = `${process.env.HOME}/walletdb-bak-${Date.now()}.ldb`;
 
   console.log('Checking version.');
 
-  const raw = await db.get('V');
-  assert(raw, 'No version.');
+  const data = await db.get('V');
+  assert(data, 'No version.');
 
-  const version = raw.readUInt32LE(0, true);
+  let ver = data.readUInt32LE(0, true);
 
-  if (version !== 5)
-    throw Error(`DB is version ${version}.`);
+  if (ver !== 5)
+    throw Error(`DB is version ${ver}.`);
 
   console.log('Backing up DB to: %s.', bak);
 
   await db.backup(bak);
 
-  const data = Buffer.allocUnsafe(4);
-  data.writeUInt32LE(6, 0, true);
-  batch.put('V', data);
+  ver = Buffer.allocUnsafe(4);
+  ver.writeUInt32LE(6, 0, true);
+  batch.put('V', ver);
 }
 
 async function wipeTXDB() {
   let total = 0;
 
-  const keys = await db.keys();
+  const keys = await db.keys({
+    gte: Buffer.from([0x00]),
+    lte: Buffer.from([0xff])
+  });
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
@@ -52,7 +61,7 @@ async function wipeTXDB() {
       case 0x6f: // o
       case 0x68: // h
         batch.del(key);
-        total += 1;
+        total++;
         break;
     }
   }
@@ -64,8 +73,8 @@ async function wipeTXDB() {
 
 async function patchAccounts() {
   const items = await db.range({
-    gt: Buffer.from([0x61]), // a
-    lt: Buffer.from([0x62])
+    gte: Buffer.from('610000000000000000', 'hex'), // a
+    lte: Buffer.from('61ffffffffffffffff', 'hex')  // a
   });
 
   for (let i = 0; i < items.length; i++) {
@@ -82,8 +91,8 @@ async function patchAccounts() {
 
 async function indexPaths() {
   const items = await db.range({
-    gt: Buffer.from([0x50]), // P
-    lt: Buffer.from([0x51])
+    gte: Buffer.from('5000000000' + encoding.NULL_HASH, 'hex'), // P
+    lte: Buffer.from('50ffffffff' + encoding.HIGH_HASH, 'hex')  // P
   });
 
   for (let i = 0; i < items.length; i++) {
@@ -98,8 +107,8 @@ async function indexPaths() {
 
 async function patchPathMaps() {
   const items = await db.range({
-    gt: Buffer.from([0x70]), // p
-    lt: Buffer.from([0x71])
+    gte: Buffer.from('70' + encoding.NULL_HASH, 'hex'), // p
+    lte: Buffer.from('70' + encoding.HIGH_HASH, 'hex')  // p
   });
 
   for (let i = 0; i < items.length; i++) {
@@ -112,7 +121,7 @@ async function patchPathMaps() {
 }
 
 function parseWallets(data) {
-  const p = bio.read(data);
+  const p = new BufferReader(data);
   const wids = [];
 
   while (p.left())
@@ -122,7 +131,7 @@ function parseWallets(data) {
 }
 
 function serializeWallets(wids) {
-  const p = bio.write();
+  const p = new BufferWriter();
 
   p.writeU32(wids.length);
 
@@ -135,7 +144,7 @@ function serializeWallets(wids) {
 }
 
 function accountToRaw(account) {
-  const p = bio.write();
+  const p = new BufferWriter();
 
   p.writeVarString(account.name, 'ascii');
   p.writeU8(account.initialized ? 1 : 0);
@@ -161,7 +170,7 @@ function accountToRaw(account) {
 
 function accountFromRaw(data) {
   const account = {};
-  const p = bio.read(data);
+  const p = new BufferReader(data);
 
   account.name = p.readVarString('ascii');
   account.initialized = p.readU8() === 1;
@@ -210,7 +219,7 @@ async function updateLookahead() {
   const db = new WalletDB({
     network: process.argv[3],
     db: 'leveldb',
-    location: process.argv[2],
+    location: file,
     witness: false,
     useCheckpoints: false,
     maxFiles: 64,
@@ -231,8 +240,6 @@ async function updateLookahead() {
   await db.close();
 }
 
-updateLookahead;
-
 async function unstate() {
   await db.open();
   batch = db.batch();
@@ -244,7 +251,7 @@ async function unstate() {
 (async () => {
   await db.open();
   batch = db.batch();
-  console.log('Opened %s.', process.argv[2]);
+  console.log('Opened %s.', file);
   await updateVersion();
   await wipeTXDB();
   await patchAccounts();
@@ -254,7 +261,7 @@ async function unstate() {
   await db.close();
 
   // Do not use:
-  // await updateLookahead();
+  await updateLookahead();
   await unstate();
 })().then(() => {
   console.log('Migration complete.');

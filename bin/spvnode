@@ -2,10 +2,11 @@
 
 'use strict';
 
-process.title = 'bcash';
+process.title = 'bcoin-abc';
 
 const assert = require('assert');
 const SPVNode = require('../lib/node/spvnode');
+const util = require('../lib/utils/util');
 const Outpoint = require('../lib/primitives/outpoint');
 
 const node = new SPVNode({
@@ -43,7 +44,7 @@ process.on('unhandledRejection', (err, promise) => {
     node.on('block', (block) => {
       assert(block.txs.length >= 1);
       if (block.txs.length > 1)
-        console.log(block.txs[1]);
+        util.log(block.txs[1]);
     });
   }
 
@@ -52,3 +53,4 @@ process.on('unhandledRejection', (err, promise) => {
   console.error(err.stack);
   process.exit(1);
 });
+

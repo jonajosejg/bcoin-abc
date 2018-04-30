@@ -14,9 +14,8 @@
  */
 
 const assert = require('assert');
-const secp256k1 = require('bcrypto/lib/secp256k1');
-const bio = require('bufio');
-const {encoding} = bio;
+const secp256k1 = require('../../lib/crypto/secp256k1');
+const encoding = require('../../lib/utils/encoding');
 const consensus = require('../../lib/protocol/consensus');
 
 /*

@@ -3,15 +3,16 @@
 
 'use strict';
 
-const bio = require('bufio');
 const assert = require('./util/assert');
 const Output = require('../lib/primitives/output');
 const Input = require('../lib/primitives/input');
 const Outpoint = require('../lib/primitives/outpoint');
+const Coin = require('../lib/primitives/coin');
 const CoinView = require('../lib/coins/coinview');
 const CoinEntry = require('../lib/coins/coinentry');
+const StaticWriter = require('../lib/utils/staticwriter');
+const BufferReader = require('../lib/utils/reader');
 const common = require('./util/common');
-const Coin = require('../lib/primitives/coin');
 
 const tx1 = common.readTX('tx1');
 const coin1 = common.readFile('coin1.raw');
@@ -89,9 +90,9 @@ describe('Coins', function() {
     const [tx, view] = tx1.getTX();
 
     const size = view.getSize(tx);
-    const bw = bio.write(size);
+    const bw = new StaticWriter(size);
     const raw = view.toWriter(bw, tx).render();
-    const br = bio.read(raw);
+    const br = new BufferReader(raw);
     const res = CoinView.fromReader(br, tx);
 
     const prev = tx.inputs[0].prevout;
@@ -102,7 +103,7 @@ describe('Coins', function() {
     deepCoinsEqual(coins.get(1), reserialize(coins.get(1)));
   });
 
-   it('should instantiate from tx', () => {
+  it('should instantiate from tx', () => {
     const [tx] = tx1.getTX();
     const coin = Coin.fromTX(tx, 0, 0);
 
@@ -122,7 +123,7 @@ describe('Coins', function() {
     const coin = Coin.fromRaw(coin1);
 
     assert.strictEqual(coin.getAddress().toString(),
-      '3KUER9kZ693d5FQgvmr5qNDKnSpP9nXv9v');
+    '3KUER9kZ693d5FQgvmr5qNDKnSpP9nXv9v');
     assert.strictEqual(coin.value, 5000000);
     assert.strictEqual(coin.getType(), 'multisig');
     assert.strictEqual(coin.version, 1);

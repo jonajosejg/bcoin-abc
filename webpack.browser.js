@@ -1,7 +1,7 @@
 'use strict';
 
-const Path = require('path');
 const webpack = require('webpack');
+const path = require('path');
 const UglifyJsPlugin = require('uglifyjs-webpack-plugin');
 const str = JSON.stringify;
 const env = process.env;
@@ -9,13 +9,11 @@ const env = process.env;
 module.exports = {
   target: 'web',
   entry: {
-    'bcash': './lib/bcash',
-    'bcash-worker': './lib/workers/worker'
+    'bcoin': './lib/bcoin-browser',
+    'bcoin-worker': './lib/workers/worker'
   },
   output: {
-    library: 'bcash',
-    libraryTarget: 'umd',
-    path: Path.join(__dirname, 'browser'),
+    path: path.join(__dirname, 'browser'),
     filename: '[name].js'
   },
   resolve: {
@@ -24,11 +22,15 @@ module.exports = {
   },
   plugins: [
     new webpack.DefinePlugin({
-      'process.env.BCASH_NETWORK':
-        str(env.BCASH_NETWORK || 'main'),
-      'process.env.BCASH_WORKER_FILE':
-        str(env.BCASH_WORKER_FILE || '/bcash-worker.js')
+      'process.env.BCOIN_NETWORK':
+        str(env.BCOIN_NETWORK || 'main'),
+      'process.env.BCOIN_WORKER_FILE':
+        str(env.BCOIN_WORKER_FILE || '/bcoin-worker.js')
     }),
-    new UglifyJsPlugin()
+    new UglifyJsPlugin({
+      compress: {
+        warnings: true
+      }
+    })
   ]
 };

@@ -2,7 +2,7 @@
 
 'use strict';
 
-process.title = 'bcash';
+process.title = 'bcoin';
 
 if (process.argv.indexOf('--help') !== -1
     || process.argv.indexOf('-h') !== -1) {
@@ -28,7 +28,8 @@ const node = new FullNode({
   logFile: true,
   logConsole: true,
   logLevel: 'debug',
-  memory: false,
+  db: 'leveldb',
+  persistent: true,
   workers: true,
   listen: true,
   loader: require

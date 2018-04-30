@@ -5,6 +5,7 @@
 
 const assert = require('./util/assert');
 const consensus = require('../lib/protocol/consensus');
+const co = require('../lib/utils/co');
 const Coin = require('../lib/primitives/coin');
 const Script = require('../lib/script/script');
 const Opcode = require('../lib/script/opcode');
@@ -12,9 +13,10 @@ const FullNode = require('../lib/node/fullnode');
 const MTX = require('../lib/primitives/mtx');
 const TX = require('../lib/primitives/tx');
 const Address = require('../lib/primitives/address');
+const Block = require('../lib/primitives/block');
 
 const node = new FullNode({
-  memory: true,
+  db: 'memory',
   apiKey: 'foo',
   network: 'regtest',
   workers: true,
@@ -23,7 +25,7 @@ const node = new FullNode({
 
 const chain = node.chain;
 const miner = node.miner;
-const {wdb} = node.require('walletdb');
+const wdb = node.require('walletdb');
 
 let wallet = null;
 let tip1 = null;
@@ -43,8 +45,8 @@ async function mineBlock(tip, tx) {
 
   spend.addTX(tx, 0);
 
-  spend.addOutput(await wallet.receiveAddress(), 25 * 1e8);
-  spend.addOutput(await wallet.changeAddress(), 5 * 1e8);
+  spend.addOutput(wallet.getReceive(), 25 * 1e8);
+  spend.addOutput(wallet.getChange(), 5 * 1e8);
 
   spend.setLocktime(chain.height);
 
@@ -93,7 +95,7 @@ describe('Node', function() {
   it('should open walletdb', async () => {
     wallet = await wdb.create();
     miner.addresses.length = 0;
-    miner.addAddress(await wallet.receiveAddress());
+    miner.addAddress(wallet.getReceive());
   });
 
   it('should mine a block', async () => {
@@ -124,7 +126,7 @@ describe('Node', function() {
 
       assert(!await chain.isMainChain(tip2));
 
-      await new Promise(setImmediate);
+      await co.wait();
     }
   });
 
@@ -135,7 +137,7 @@ describe('Node', function() {
   });
 
   it('should have correct balance', async () => {
-    await new Promise(r => setTimeout(r, 100));
+    await co.timeout(100);
 
     const balance = await wallet.getBalance();
     assert.strictEqual(balance.unconfirmed, 550 * 1e8);
@@ -162,7 +164,7 @@ describe('Node', function() {
 
     assert(forked);
     assert.strictEqual(chain.tip.hash, block.hash('hex'));
-    assert(chain.tip.chainwork.gt(tip1.chainwork));
+    assert(chain.tip.chainwork.cmp(tip1.chainwork) > 0);
   });
 
   it('should have correct chain value', () => {
@@ -172,10 +174,10 @@ describe('Node', function() {
   });
 
   it('should have correct balance', async () => {
-    await new Promise(r => setTimeout(r, 100));
+    await co.timeout(100);
 
     const balance = await wallet.getBalance();
-    assert.strictEqual(balance.unconfirmed, 1100 * 1e8);
+    assert.strictEqual(balance.unconfirmed, 100 * 1e8);
     assert.strictEqual(balance.confirmed, 600 * 1e8);
   });
 
@@ -230,7 +232,7 @@ describe('Node', function() {
   });
 
   it('should have correct chain value', () => {
-    assert.strictEqual(chain.db.state.value, 65000000000);
+    assert.strictEqual(chain.db.state.value, 10000000000);
     assert.strictEqual(chain.db.state.coin, 23);
     assert.strictEqual(chain.db.state.tx, 24);
   });
@@ -251,14 +253,14 @@ describe('Node', function() {
   });
 
   it('should get balance', async () => {
-    await new Promise(r => setTimeout(r, 100));
+    await co.timeout(100);
 
     const balance = await wallet.getBalance();
-    assert.strictEqual(balance.unconfirmed, 1250 * 1e8);
-    assert.strictEqual(balance.confirmed, 750 * 1e8);
+    assert.strictEqual(balance.unconfirmed,150 * 1e8);
+    assert.strictEqual(balance.confirmed, 150 * 1e8);
 
-    assert((await wallet.receiveDepth()) >= 7);
-    assert((await wallet.changeDepth()) >= 6);
+    assert(wallet.account.receiveDepth >= 7);
+    assert(wallet.account.changeDepth >= 6);
 
     assert.strictEqual(wdb.state.height, chain.height);
 
@@ -291,7 +293,7 @@ describe('Node', function() {
       total += txs.length;
     });
 
-    assert.strictEqual(total, 26);
+    assert.strictEqual(total, 3);
   });
 
   it('should activate csv', async () => {
@@ -326,7 +328,7 @@ describe('Node', function() {
       }
     }
 
-    assert.strictEqual(chain.height, 432);
+    assert.strictEqual(chain.height, 420);
     assert(chain.state.hasCSV());
 
     const cache = await chain.db.getStateCache();
@@ -446,7 +448,7 @@ describe('Node', function() {
 
   it('should rescan for transactions', async () => {
     await wdb.rescan(0);
-    assert.strictEqual((await wallet.getBalance()).confirmed, 1289250000000);
+    assert.strictEqual(wallet.txdb.state.confirmed, 1272500000000);
   });
 
   it('should reset miner mempool', async () => {
@@ -464,9 +466,6 @@ describe('Node', function() {
   it('should get a block template', async () => {
     const json = await node.rpc.call({
       method: 'getblocktemplate',
-      params: [
-        {rules: ['segwit']}
-      ],
       id: '1'
     }, {});
 
@@ -480,11 +479,11 @@ describe('Node', function() {
       result: {
         capabilities: ['proposal'],
         mutable: ['time', 'transactions', 'prevblock'],
-        version: 536870912,
-        rules: ['csv', '!segwit', 'testdummy'],
-        vbavailable: {},
+        version: 805306369,
+        rules: [],
+        vbavailable: {'csv': 0, 'testdummy': 28},
         vbrequired: 0,
-        height: 437,
+        height: 422,
         previousblockhash: node.chain.tip.rhash(),
         target:
           '7fffff0000000000000000000000000000000000000000000000000000000000',
@@ -494,17 +493,13 @@ describe('Node', function() {
         mintime: json.result.mintime,
         maxtime: json.result.maxtime,
         expires: json.result.expires,
-        sigoplimit: 80000,
-        sizelimit: 4000000,
-        weightlimit: 4000000,
-        longpollid: node.chain.tip.rhash() + '00000000',
+        sigoplimit: getMaxBlockSigops(block.getBaseSize()),
+        sizelimit: consensus.MAX_GENERATED_BLOCK_SIZE,
+        longpollid: node.chain.tip.rhash() + '0000000000',
         submitold: false,
-        coinbaseaux: { flags: '6d696e65642062792062636f696e' },
+        coinbaseaux: { flags: '6d696e6564206279206263617368' },
         coinbasevalue: 1250000000,
         coinbasetxn: undefined,
-        default_witness_commitment:
-          '6a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962'
-          + 'b48bebd836974e8cf9',
         transactions: []
       },
       error: null,
@@ -550,15 +545,17 @@ describe('Node', function() {
   it('should validate an address', async () => {
     const addr = new Address();
 
+    addr.network = node.network;
+
     const json = await node.rpc.call({
       method: 'validateaddress',
-      params: [addr.toString(node.network)]
+      params: [addr.toString()]
     }, {});
 
     assert.deepStrictEqual(json.result, {
       isvalid: true,
-      address: addr.toString(node.network),
-      scriptPubKey: Script.fromAddress(addr, node.network).toJSON(),
+      address: addr.toString(),
+      scriptPubKey: Script.fromAddress(addr).toJSON(),
       ismine: false,
       iswatchonly: false
     });
@@ -566,10 +563,10 @@ describe('Node', function() {
 
   it('should add transaction to mempool', async () => {
     const mtx = await wallet.createTX({
-      rate: 100000,
+      rate: 1000,
       outputs: [{
         value: 100000,
-        address: await wallet.receiveAddress()
+        address: wallet.getAddress()
       }]
     });
 
@@ -579,7 +576,7 @@ describe('Node', function() {
 
     const tx = mtx.toTX();
 
-    await wdb.addTX(tx);
+    await wallet.db.addTX(tx);
 
     const missing = await node.mempool.addTX(tx);
     assert(!missing);
@@ -594,7 +591,7 @@ describe('Node', function() {
       rate: 1000,
       outputs: [{
         value: 50000,
-        address: await wallet.receiveAddress()
+        address: wallet.getAddress()
       }]
     });
 
@@ -604,7 +601,7 @@ describe('Node', function() {
 
     const tx = mtx.toTX();
 
-    await wdb.addTX(tx);
+    await wallet.db.addTX(tx);
 
     const missing = await node.mempool.addTX(tx);
     assert(!missing);
@@ -619,9 +616,6 @@ describe('Node', function() {
 
     const json = await node.rpc.call({
       method: 'getblocktemplate',
-      params: [
-        {rules: ['segwit']}
-      ],
       id: '1'
     }, {});
 
@@ -631,16 +625,16 @@ describe('Node', function() {
     const result = json.result;
 
     let fees = 0;
-    let weight = 0;
+    let size = 0;
 
     for (const item of result.transactions) {
       fees += item.fee;
-      weight += item.weight;
+      size += item.size;
     }
 
-    assert.strictEqual(result.transactions.length, 2);
+    assert.strictEqual(result.transactions.length, 0);
     assert.strictEqual(fees, tx1.getFee() + tx2.getFee());
-    assert.strictEqual(weight, tx1.getWeight() + tx2.getWeight());
+    assert.strictEqual(size, tx1.getBaseSize() + tx2.getBaseSize());
     assert.strictEqual(result.transactions[0].hash, tx1.txid());
     assert.strictEqual(result.transactions[1].hash, tx2.txid());
     assert.strictEqual(result.coinbasevalue, 125e7 + fees);
@@ -658,28 +652,14 @@ describe('Node', function() {
     assert.strictEqual(tx.txid(), tx2.txid());
   });
 
-  it('should prioritise transaction', async () => {
-    const json = await node.rpc.call({
-      method: 'prioritisetransaction',
-      params: [tx2.txid(), 0, 10000000],
-      id: '1'
-    }, {});
-
-    assert(!json.error);
-    assert.strictEqual(json.result, true);
-  });
-
   it('should get a block template', async () => {
     let fees = 0;
-    let weight = 0;
+    let size = 0;
 
     node.rpc.refreshBlock();
 
     const json = await node.rpc.call({
       method: 'getblocktemplate',
-      params: [
-        {rules: ['segwit']}
-      ],
       id: '1'
     }, {});
 
@@ -690,12 +670,12 @@ describe('Node', function() {
 
     for (const item of result.transactions) {
       fees += item.fee;
-      weight += item.weight;
+      size += item.size;
     }
 
-    assert.strictEqual(result.transactions.length, 2);
+    assert.strictEqual(result.transactions.length, 0);
     assert.strictEqual(fees, tx1.getFee() + tx2.getFee());
-    assert.strictEqual(weight, tx1.getWeight() + tx2.getWeight());
+    assert.strictEqual(size, tx1.getBaseSize() + tx2.getBaseSize());
     assert.strictEqual(result.transactions[0].hash, tx2.txid());
     assert.strictEqual(result.transactions[1].hash, tx1.txid());
     assert.strictEqual(result.coinbasevalue, 125e7 + fees);

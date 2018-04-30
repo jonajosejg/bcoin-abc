@@ -5,39 +5,31 @@
 
 const assert = require('./util/assert');
 const consensus = require('../lib/protocol/consensus');
+const encoding = require('../lib/utils/encoding');
+const co = require('../lib/utils/co');
 const Address = require('../lib/primitives/address');
 const Script = require('../lib/script/script');
 const Outpoint = require('../lib/primitives/outpoint');
 const MTX = require('../lib/primitives/mtx');
+const HTTP = require('../lib/http');
 const FullNode = require('../lib/node/fullnode');
 const pkg = require('../lib/pkg');
-const Network = require('../lib/protocol/network');
-const network = Network.get('regtest');
 
 const node = new FullNode({
   network: 'regtest',
   apiKey: 'foo',
   walletAuth: true,
-  memory: true,
+  db: 'memory',
   workers: true,
   plugins: [require('../lib/wallet/plugin')]
 });
 
-const {NodeClient, WalletClient} = require('bclient');
-
-const nclient = new NodeClient({
-  port: network.rpcPort,
+const wallet = new HTTP.Wallet({
+  network: 'regtest',
   apiKey: 'foo'
 });
 
-const wclient = new WalletClient({
-  port: network.walletPort,
-  apiKey: 'foo'
-});
-
-let wallet = null;
-
-const {wdb} = node.require('walletdb');
+const wdb = node.require('walletdb');
 
 let addr = null;
 let hash = null;
@@ -48,19 +40,15 @@ describe('HTTP', function() {
   it('should open node', async () => {
     consensus.COINBASE_MATURITY = 0;
     await node.open();
-    await nclient.open();
-    await wclient.open();
   });
 
   it('should create wallet', async () => {
-    const info = await wclient.createWallet('test');
+    const info = await wallet.create({ id: 'test' });
     assert.strictEqual(info.id, 'test');
-    wallet = wclient.wallet('test', info.token);
-    await wallet.open();
   });
 
   it('should get info', async () => {
-    const info = await nclient.getInfo();
+    const info = await wallet.client.getInfo();
     assert.strictEqual(info.network, node.network.type);
     assert.strictEqual(info.version, pkg.version);
     assert.typeOf(info.pool, 'object');
@@ -72,15 +60,15 @@ describe('HTTP', function() {
   it('should get wallet info', async () => {
     const info = await wallet.getInfo();
     assert.strictEqual(info.id, 'test');
-    const acct = await wallet.getAccount('default');
-    const str = acct.receiveAddress;
+    assert.typeOf(info.account, 'object');
+    const str = info.account.receiveAddress;
     assert.typeOf(str, 'string');
-    addr = Address.fromString(str, node.network);
+    addr = Address.fromString(str);
   });
 
   it('should fill with funds', async () => {
     const mtx = new MTX();
-    mtx.addOutpoint(new Outpoint(consensus.NULL_HASH, 0));
+    mtx.addOutpoint(new Outpoint(encoding.NULL_HASH, 0));
     mtx.addOutput(addr, 50460);
     mtx.addOutput(addr, 50460);
     mtx.addOutput(addr, 50460);
@@ -104,10 +92,10 @@ describe('HTTP', function() {
     });
 
     await wdb.addTX(tx);
-    await new Promise(r => setTimeout(r, 300));
+    await co.timeout(300);
 
     assert(receive);
-    assert.strictEqual(receive.name, 'default');
+    assert.strictEqual(receive.id, 'test');
     assert.strictEqual(receive.type, 'pubkeyhash');
     assert.strictEqual(receive.branch, 0);
     assert(balance);
@@ -128,7 +116,7 @@ describe('HTTP', function() {
       rate: 10000,
       outputs: [{
         value: 10000,
-        address: addr.toString(node.network)
+        address: addr.toString()
       }]
     };
 
@@ -155,9 +143,9 @@ describe('HTTP', function() {
 
   it('should generate new api key', async () => {
     const old = wallet.token.toString('hex');
-    const result = await wallet.retoken(null);
-    assert.strictEqual(result.token.length, 64);
-    assert.notStrictEqual(result.token, old);
+    const token = await wallet.retoken(null);
+    assert.strictEqual(token.length, 64);
+    assert.notStrictEqual(token, old);
   });
 
   it('should get balance', async () => {
@@ -166,12 +154,12 @@ describe('HTTP', function() {
   });
 
   it('should execute an rpc call', async () => {
-    const info = await nclient.execute('getblockchaininfo', []);
+    const info = await wallet.client.rpc.execute('getblockchaininfo', []);
     assert.strictEqual(info.blocks, 0);
   });
 
   it('should execute an rpc call with bool parameter', async () => {
-    const info = await nclient.execute('getrawmempool', [true]);
+    const info = await wallet.client.rpc.execute('getrawmempool', [true]);
     assert.deepStrictEqual(info, {});
   });
 
@@ -200,7 +188,7 @@ describe('HTTP', function() {
   });
 
   it('should get a block template', async () => {
-    const json = await nclient.execute('getblocktemplate', []);
+    const json = await wallet.client.rpc.execute('getblocktemplate', []);
     assert.deepStrictEqual(json, {
       capabilities: ['proposal'],
       mutable: ['time', 'transactions', 'prevblock'],
@@ -220,12 +208,12 @@ describe('HTTP', function() {
       maxtime: json.maxtime,
       expires: json.expires,
       sigoplimit: 20000,
-      sizelimit: 8000000,
+      sizelimit: 1000000,
       longpollid:
         '0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206'
-        + '00000000',
+        + '0000000000',
       submitold: false,
-      coinbaseaux: { flags: '6d696e6564206279206263617368' },
+      coinbaseaux: { flags: '6d696e65642062792062636f696e' },
       coinbasevalue: 5000000000,
       transactions: []
     });
@@ -235,7 +223,7 @@ describe('HTTP', function() {
     const attempt = await node.miner.createBlock();
     const block = attempt.toBlock();
     const hex = block.toRaw().toString('hex');
-    const json = await nclient.execute('getblocktemplate', [{
+    const json = await wallet.client.rpc.execute('getblocktemplate', [{
       mode: 'proposal',
       data: hex
     }]);
@@ -243,12 +231,12 @@ describe('HTTP', function() {
   });
 
   it('should validate an address', async () => {
-    const json = await nclient.execute('validateaddress', [
-      addr.toString(node.network)
+    const json = await wallet.client.rpc.execute('validateaddress', [
+      addr.toString()
     ]);
     assert.deepStrictEqual(json, {
       isvalid: true,
-      address: addr.toString(node.network),
+      address: addr.toString(),
       scriptPubKey: Script.fromAddress(addr).toRaw().toString('hex'),
       ismine: false,
       iswatchonly: false
@@ -258,7 +246,6 @@ describe('HTTP', function() {
   it('should cleanup', async () => {
     consensus.COINBASE_MATURITY = 100;
     await wallet.close();
-    await nclient.close();
     await node.close();
   });
 });

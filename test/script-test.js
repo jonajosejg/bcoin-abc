@@ -8,8 +8,8 @@ const Script = require('../lib/script/script');
 const Stack = require('../lib/script/stack');
 const Opcode = require('../lib/script/opcode');
 const TX = require('../lib/primitives/tx');
-const consensus = require('../lib/protocol/consensus');
-const {fromFloat} = require('../lib/utils/fixed');
+const util = require('../lib/utils/util');
+const encoding = require('../lib/utils/encoding');
 
 const scripts = require('./data/script-tests.json');
 
@@ -38,7 +38,7 @@ function parseScriptTest(data) {
 
   let value = 0;
   if (witArr.length > 0)
-    value = fromFloat(witArr.pop(), 8);
+    value = util.fromFloat(witArr.pop(), 8);
 
   const input = Script.fromString(inpHex);
   const output = Script.fromString(outHex);
@@ -283,7 +283,7 @@ describe('Script', function() {
           version: 1,
           inputs: [{
             prevout: {
-              hash: consensus.NULL_HASH,
+              hash: encoding.NULL_HASH,
               index: 0xffffffff
             },
             script: [
